@@ -210,6 +210,51 @@ class ManualInputStrategy(InputStrategy):
         self.__cleanup()
 
 
+class CheckSolutionStrategy(ABC):
+    def __init__(self, tc_dir: str):
+        self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
+        self.expected_output_filepath = os.path.join(tc_dir, OUTPUT_FILENAME)
+
+        if (not os.path.isfile(self.expected_output_filepath)):
+            raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
+
+    def setup_strategy(self):
+        self.user_output_fileobj = open(self.user_output_filepath, 'r')
+        self.expected_output_fileobj = open(self.expected_output_filepath, 'r')
+
+    @abstractmethod
+    def check_output(self) -> str:
+        pass
+
+    @abstractmethod
+    def cleanup(self):
+        self.user_output_fileobj.close()
+        self.expected_output_fileobj.close()
+        os.remove(self.user_output_filepath)
+
+
+class LineCompareCheckStrategy(CheckSolutionStrategy):
+    def __init__(self, tc_dir: str):
+        super().__init__(tc_dir)
+
+    def cleanup(self):
+        super().cleanup()
+
+    def check_output(self):
+        self.setup_strategy()
+        verdict = "AC"
+        for line in self.expected_output_fileobj:
+            user_line = self.user_output_fileobj.readline().rstrip('\r\n')
+            expected_line = line.rstrip('\r\n')
+
+            if (user_line != expected_line):
+                verdict = "WA"
+                break
+
+        self.cleanup()
+        return verdict
+
+
 def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> str:
     '''
     Compare output produced by user against expected output
@@ -229,7 +274,7 @@ def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> 
     return "AC"
 
 
-def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
+def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy, check_strategy: CheckSolutionStrategy):
     '''
     Run user's code against provided a test case
 
@@ -238,26 +283,10 @@ def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
     tc_dir (str): Directory of current test case
 
     '''
-    output_name = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
-    expected_output_path = os.path.join(tc_dir, OUTPUT_FILENAME)
-
-    if (not os.path.isfile(expected_output_path)):
-        raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
-
     input_strategy.execute_strategy(execute_command)
 
-    # Open user output and expected output file
-    user_output = open(output_name, 'r')
-    expected_output = open(expected_output_path, 'r')
-
     # Get verdict by checking user output against expected output
-    tc_verdict = check_output(user_output, expected_output)
-
-    user_output.close()
-    expected_output.close()
-
-    # Remove user output file
-    os.remove(output_name)
+    tc_verdict = check_strategy.check_output()
 
     return tc_verdict
 
@@ -291,7 +320,7 @@ def evaluate_submission(submission_filename: str, compiling_strategy: CompilingS
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
         tc_verdict = check_tc(execute_command, tc_dir,
-                              get_input_strategy(tc_dir))
+                              get_input_strategy(tc_dir), LineCompareCheckStrategy(tc_dir))
         verdict_list.append(tc_verdict)
 
     print_verdict(verdict_list)
