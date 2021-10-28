@@ -238,7 +238,7 @@ def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
     tc_dir (str): Directory of current test case
 
     '''
-    output_name = os.path.join(tc_dir, 'output.user.out')
+    output_name = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
     expected_output_path = os.path.join(tc_dir, OUTPUT_FILENAME)
 
     if (not os.path.isfile(expected_output_path)):
