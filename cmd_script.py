@@ -45,6 +45,11 @@ class InvalidSubmissionFile(CustomException):
         super().__init__(err_msg)
 
 
+class InvalidStrategy(CustomException):
+    def __init__(self, err_msg):
+        super().__init__(err_msg)
+
+
 class CompilingStrategy(ABC):
     '''
 
@@ -201,7 +206,7 @@ def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> 
     return "AC"
 
 
-def check_tc(execute_command: str, tc_dir: str):
+def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
     '''
     Run user's code against provided a test case
 
@@ -211,7 +216,6 @@ def check_tc(execute_command: str, tc_dir: str):
 
     '''
 
-    input_strategy = ManualInputStrategy(tc_dir)
     input_strategy.execute_strategy(execute_command)
 
     output_name = os.path.join(tc_dir, 'output.user.out')
@@ -261,7 +265,8 @@ def evaluate_submission(submission_filename: str, compiling_strategy: CompilingS
     # Loop through each test case directory and get verdict of that test case
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
-        tc_verdict = check_tc(execute_command, tc_dir)
+        tc_verdict = check_tc(execute_command, tc_dir,
+                              get_input_strategy(tc_dir))
         verdict_list.append(tc_verdict)
 
     print_verdict(verdict_list)
@@ -304,6 +309,14 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
     if (extension == '.java'):
         return JavaCompilingStrategy(filename_without_extension, filename_without_extension + extension)
     raise InvalidSubmissionFile("Extension is not supported")
+
+
+def get_input_strategy(tc_dir: str) -> InputStrategy:
+    if (INPUT_STRATEGY == "automatic"):
+        return AutomaticInputStrategy(tc_dir)
+    if (INPUT_STRATEGY == "manual"):
+        return ManualInputStrategy(tc_dir)
+    raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
 
 
 def main(args):
