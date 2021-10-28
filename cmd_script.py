@@ -16,9 +16,12 @@ from io import TextIOWrapper
 from abc import ABC, abstractmethod
 import subprocess
 import os
+from typing import List
 
+INPUT_STRATEGY = "manual"
 INPUT_FILENAME = "p2in1.txt"
 OUTPUT_FILENAME = "p2out1.txt"
+USER_OUTPUT_FILENAME = "output.user.out"
 TC_DIR = "test_cases"
 
 
@@ -39,6 +42,11 @@ class TCNotFound(CustomException):
 
 class InvalidSubmissionFile(CustomException):
     def __init__(self, err_msg: str):
+        super().__init__(err_msg)
+
+
+class InvalidStrategy(CustomException):
+    def __init__(self, err_msg):
         super().__init__(err_msg)
 
 
@@ -104,6 +112,104 @@ class JavaCompilingStrategy(CompilingStrategy):
         return f'java {self.filename_without_extension}'
 
 
+class InputStrategy(ABC):
+    '''
+    Represent a generic Input strategy
+    '''
+
+    def __init__(self, tc_dir: str):
+        '''
+
+        Generic initialization of an input strategy
+        Generate path of input and user output file and check if input file exists
+
+        '''
+        self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
+        self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
+
+        if (not os.path.isfile(self.input_filepath)):
+            raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
+
+    @abstractmethod
+    def execute_strategy(self, execute_command: str):
+        '''
+        Run the provided command inside the environment of an input strategy
+
+        Parameters:
+        execute_command(str): command to be executed
+
+        '''
+        pass
+
+
+class AutomaticInputStrategy(InputStrategy):
+    '''
+
+    Automatic Input strategy
+    Use case: When source code is expected to read data from stdin
+
+    '''
+
+    def __init__(self, tc_dir: str):
+        super().__init__(tc_dir)
+        self.input_fileobj = open(self.input_filepath)
+        self.user_output_fileobj = open(self.user_output_filepath, 'w')
+
+    def __cleanup(self):
+        '''
+
+        Do necessary clean-up after executing the strategy
+
+        '''
+        self.input_fileobj.close()
+        self.user_output_fileobj.close()
+
+    def execute_strategy(self, execute_command: str):
+        p = subprocess.Popen(execute_command, stdin=self.input_fileobj,
+                             stdout=self.user_output_fileobj, shell=True, cwd=os.getcwd())
+        p.wait()
+        self.user_output_fileobj.flush()
+        self.__cleanup()
+
+
+class ManualInputStrategy(InputStrategy):
+    '''
+
+    Manual Input Strategy
+    Use case: When source code is expected to read data directly from text file 
+
+    '''
+
+    def __init__(self, tc_dir: str):
+        super().__init__(tc_dir)
+        self.temporary_input_filepath = os.path.join(
+            os.getcwd(), INPUT_FILENAME)
+        self.temporary_user_output_filepath = os.path.join(
+            os.getcwd(), USER_OUTPUT_FILENAME)
+
+        os.rename(self.input_filepath, self.temporary_input_filepath)
+        self.user_output_fileobj = open(
+            self.temporary_user_output_filepath, 'w')
+
+    def __cleanup(self):
+        '''
+
+        Do necessary clean-up after executing the strategy
+
+        '''
+        self.user_output_fileobj.close()
+        os.rename(self.temporary_input_filepath, self.input_filepath)
+        os.rename(self.temporary_user_output_filepath,
+                  self.user_output_filepath)
+
+    def execute_strategy(self, execute_command: str):
+        p = subprocess.Popen(
+            execute_command, stdout=self.user_output_fileobj, shell=True, cwd=os.getcwd())
+        p.wait()
+        self.user_output_fileobj.flush()
+        self.__cleanup()
+
+
 def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> str:
     '''
     Compare output produced by user against expected output
@@ -123,7 +229,7 @@ def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> 
     return "AC"
 
 
-def check_tc(execute_command: str, tc_dir: str):
+def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
     '''
     Run user's code against provided a test case
 
@@ -132,33 +238,13 @@ def check_tc(execute_command: str, tc_dir: str):
     tc_dir (str): Directory of current test case
 
     '''
-
-    # Get file path of input and expected output file
-    input_path = os.path.join(tc_dir, INPUT_FILENAME)
+    output_name = os.path.join(tc_dir, 'output.user.out')
     expected_output_path = os.path.join(tc_dir, OUTPUT_FILENAME)
 
-    # Check if test cases exists
-    if (not os.path.isfile(input_path) or not os.path.isfile(expected_output_path)):
+    if (not os.path.isfile(expected_output_path)):
         raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
 
-    # Open input file
-    open_input = open(input_path)
-
-    # Generate name for file containing user output
-    output_name = os.path.join(tc_dir, 'output.user.out')
-
-    # Open file that will store output produced by source code
-    open_output = open(output_name, 'w')
-
-    # Run code against current test case
-    p = subprocess.Popen(execute_command, stdin=open_input,
-                         stdout=open_output, shell=True, cwd=os.getcwd())
-    p.wait()
-    open_output.flush()
-
-    # Close input and output file
-    open_input.close()
-    open_output.close()
+    input_strategy.execute_strategy(execute_command)
 
     # Open user output and expected output file
     user_output = open(output_name, 'r')
@@ -204,10 +290,21 @@ def evaluate_submission(submission_filename: str, compiling_strategy: CompilingS
     # Loop through each test case directory and get verdict of that test case
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
-        tc_verdict = check_tc(execute_command, tc_dir)
+        tc_verdict = check_tc(execute_command, tc_dir,
+                              get_input_strategy(tc_dir))
         verdict_list.append(tc_verdict)
 
-    # Print test case verdict with appropriate format
+    print_verdict(verdict_list)
+
+
+def print_verdict(verdict_list: List[str]):
+    '''
+    Print test case verdict with appropriate format
+
+    Parameters:
+    verdict_list(list[str]): list of verdicts
+
+    '''
     print()
     for (tc_idx, verdict) in enumerate(verdict_list):
         passed = verdict.rstrip('\r\n') == "AC"
@@ -237,6 +334,19 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
     if (extension == '.java'):
         return JavaCompilingStrategy(filename_without_extension, filename_without_extension + extension)
     raise InvalidSubmissionFile("Extension is not supported")
+
+
+def get_input_strategy(tc_dir: str) -> InputStrategy:
+    '''
+
+    Generate input strategy based on configuration
+
+    '''
+    if (INPUT_STRATEGY == "automatic"):
+        return AutomaticInputStrategy(tc_dir)
+    if (INPUT_STRATEGY == "manual"):
+        return ManualInputStrategy(tc_dir)
+    raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
 
 
 def main(args):
