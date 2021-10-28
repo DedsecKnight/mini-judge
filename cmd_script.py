@@ -215,11 +215,13 @@ def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy):
     tc_dir (str): Directory of current test case
 
     '''
-
-    input_strategy.execute_strategy(execute_command)
-
     output_name = os.path.join(tc_dir, 'output.user.out')
     expected_output_path = os.path.join(tc_dir, OUTPUT_FILENAME)
+
+    if (not os.path.isfile(expected_output_path)):
+        raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
+
+    input_strategy.execute_strategy(execute_command)
 
     # Open user output and expected output file
     user_output = open(output_name, 'r')
