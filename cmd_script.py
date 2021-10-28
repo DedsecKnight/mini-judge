@@ -118,6 +118,12 @@ class InputStrategy(ABC):
     '''
 
     def __init__(self, tc_dir: str):
+        '''
+
+        Generic initialization of an input strategy
+        Generate path of input and user output file and check if input file exists
+
+        '''
         self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
 
@@ -126,6 +132,13 @@ class InputStrategy(ABC):
 
     @abstractmethod
     def execute_strategy(self, execute_command: str):
+        '''
+        Run the provided command inside the environment of an input strategy
+
+        Parameters:
+        execute_command(str): command to be executed
+
+        '''
         pass
 
 
@@ -143,6 +156,11 @@ class AutomaticInputStrategy(InputStrategy):
         self.user_output_fileobj = open(self.user_output_filepath, 'w')
 
     def __cleanup(self):
+        '''
+
+        Do necessary clean-up after executing the strategy
+
+        '''
         self.input_fileobj.close()
         self.user_output_fileobj.close()
 
@@ -174,6 +192,11 @@ class ManualInputStrategy(InputStrategy):
             self.temporary_user_output_filepath, 'w')
 
     def __cleanup(self):
+        '''
+
+        Do necessary clean-up after executing the strategy
+
+        '''
         self.user_output_fileobj.close()
         os.rename(self.temporary_input_filepath, self.input_filepath)
         os.rename(self.temporary_user_output_filepath,
@@ -314,6 +337,11 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
 
 
 def get_input_strategy(tc_dir: str) -> InputStrategy:
+    '''
+
+    Generate input strategy based on configuration
+
+    '''
     if (INPUT_STRATEGY == "automatic"):
         return AutomaticInputStrategy(tc_dir)
     if (INPUT_STRATEGY == "manual"):
