@@ -1,0 +1,5 @@
+*.java
+*.class
+*.zip
+test_cases/**
+__pycache__/
