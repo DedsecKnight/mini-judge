@@ -5,7 +5,7 @@
 -   Mini-Judge now supports 2 input strategies
     -   Automatic Input Strategy: used for when source code is expected to read from stdin
     -   Manual Input Strategy: used for when source code is expected to read directly from test case file
--   Refer to [To Change Input Strategy](to-change-input-strategy) for more details
+-   Refer to [To Change Input Strategy](#to-change-input-strategy) for more details
 
 ## Introduction
 
@@ -31,7 +31,7 @@
 
 ## To run test case check
 
--   Make sure that all the steps in [Setup Guide](setup-guide) are completed.
+-   Make sure that all the steps in [Setup Guide](#setup-guide) are completed.
 -   Compile and execute the script file.
 
 ## To change input strategy:
