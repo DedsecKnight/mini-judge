@@ -1,5 +1,12 @@
 # Mini-Judge
 
+## Update
+
+-   Mini-Judge now supports 2 input strategies
+    -   Automatic Input Strategy: used for when source code is expected to read from stdin
+    -   Manual Input Strategy: used for when source code is expected to read directly from test case file
+-   Refer to [To Change Input Strategy](to-change-input-strategy) for more details
+
 ## Introduction
 
 -   A Python script that will automatically run your source code against a set of provided test cases.
@@ -26,3 +33,9 @@
 
 -   Make sure that all the steps in [Setup Guide](setup-guide) are completed.
 -   Compile and execute the script file.
+
+## To change input strategy:
+
+-   Inside `cmd_script.py` file, do the following:
+    -   Switch to <b>Automatic Input Strategy</b>: Change the value of `INPUT_STRATEGY` constant variable to `automatic`
+    -   Switch to <b>Manual Input Strategy</b>: Change the value of `INPUT_STRATEGY` constant variable to `manual`
