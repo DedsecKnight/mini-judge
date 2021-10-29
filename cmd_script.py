@@ -59,10 +59,6 @@ class CompilingStrategy(ABC):
         filename(str): name of source code file WITHOUT extension
         filename_with_ext(str): name of source code file WITH extension 
 
-    Functions:
-        get_compile_command(): returns compile command for source code file
-        get_execute_command(): returns execute command for executable file
-
     '''
 
     def __init__(self, filename: str, filename_with_ext: str):
@@ -71,10 +67,17 @@ class CompilingStrategy(ABC):
 
     @abstractmethod
     def get_compile_command(self) -> str:
+        '''
+        Returns compile command for source code file
+
+        '''
         pass
 
     @abstractmethod
     def get_execute_command(self) -> str:
+        '''
+        Returns execute command for source code file
+        '''
         pass
 
 
@@ -211,6 +214,12 @@ class ManualInputStrategy(InputStrategy):
 
 
 class CheckSolutionStrategy(ABC):
+    '''
+
+    Represent a strategy used for verifying output produced by source code
+
+    '''
+
     def __init__(self, tc_dir: str):
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
         self.expected_output_filepath = os.path.join(tc_dir, OUTPUT_FILENAME)
@@ -219,21 +228,44 @@ class CheckSolutionStrategy(ABC):
             raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
 
     def setup_strategy(self):
+        '''
+
+        Setup steps needs to be done before verifying solution
+
+        '''
         self.user_output_fileobj = open(self.user_output_filepath, 'r')
         self.expected_output_fileobj = open(self.expected_output_filepath, 'r')
 
     @abstractmethod
     def check_output(self) -> str:
+        '''
+
+        Determines whether solution is correct 
+
+        Returns "AC" if solution is correct, "WA" otherwise
+
+        '''
         pass
 
     @abstractmethod
     def cleanup(self):
+        '''
+
+        Clean up stuffs after checking solution
+
+        '''
         self.user_output_fileobj.close()
         self.expected_output_fileobj.close()
         os.remove(self.user_output_filepath)
 
 
 class LineCompareCheckStrategy(CheckSolutionStrategy):
+    '''
+
+    A strategy of verifying solution by checking user output against expected output line by line
+
+    '''
+
     def __init__(self, tc_dir: str):
         super().__init__(tc_dir)
 
@@ -255,32 +287,14 @@ class LineCompareCheckStrategy(CheckSolutionStrategy):
         return verdict
 
 
-def check_output(user_output: TextIOWrapper, expected_output: TextIOWrapper) -> str:
-    '''
-    Compare output produced by user against expected output
-
-    Parameters:
-    user_output (TextIOWrapper): File containing output produced by submission file
-    expected_output (TextIOWrapper): File containing expected output
-
-    '''
-    for line in expected_output:
-        user_line = user_output.readline().rstrip('\r\n')
-        expected_line = line.rstrip('\r\n')
-
-        if (user_line != expected_line):
-            return "WA"
-
-    return "AC"
-
-
-def check_tc(execute_command: str, tc_dir: str, input_strategy: InputStrategy, check_strategy: CheckSolutionStrategy):
+def check_tc(execute_command: str, input_strategy: InputStrategy, check_strategy: CheckSolutionStrategy):
     '''
     Run user's code against provided a test case
 
     Parameters:
     execute_command (str): Command used to execute file generated from compilation of submission file
-    tc_dir (str): Directory of current test case
+    input_strategy (InputStrategy): Input strategy that is used for this source code
+    check_strategy (CheckSolutionStrategy): Strategy used by source code to verify correctness
 
     '''
     input_strategy.execute_strategy(execute_command)
@@ -297,8 +311,7 @@ def evaluate_submission(submission_filename: str, compiling_strategy: CompilingS
 
     Parameters:
     submission_filename (str): Name of submission file
-    compile_command (str): Command used to compile submission file
-    execute_command (str): Command used to execute submission file
+    compiling_strategy (CompilingStrategy): Compiling strategy used by source code
 
     '''
     compile_command = compiling_strategy.get_compile_command()
@@ -319,8 +332,8 @@ def evaluate_submission(submission_filename: str, compiling_strategy: CompilingS
     # Loop through each test case directory and get verdict of that test case
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
-        tc_verdict = check_tc(execute_command, tc_dir,
-                              get_input_strategy(tc_dir), LineCompareCheckStrategy(tc_dir))
+        tc_verdict = check_tc(execute_command, get_input_strategy(
+            tc_dir), get_check_solution_strategy(tc_dir))
         verdict_list.append(tc_verdict)
 
     print_verdict(verdict_list)
@@ -370,12 +383,27 @@ def get_input_strategy(tc_dir: str) -> InputStrategy:
 
     Generate input strategy based on configuration
 
+    Parameters:
+    tc_dir(str): directory of current test case
+
     '''
     if (INPUT_STRATEGY == "automatic"):
         return AutomaticInputStrategy(tc_dir)
     if (INPUT_STRATEGY == "manual"):
         return ManualInputStrategy(tc_dir)
     raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
+
+
+def get_check_solution_strategy(tc_dir: str):
+    '''
+
+    Generate a strategy to verify solution
+
+    Parameters:
+    tc_dir(str): directory of current test case
+
+    '''
+    return LineCompareCheckStrategy(tc_dir)
 
 
 def main(args):
