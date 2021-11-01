@@ -15,7 +15,7 @@ Some notes before using:
 from abc import ABC, abstractmethod
 import subprocess
 import os
-from typing import List
+from typing import List, Literal
 
 INPUT_STRATEGY = "manual"
 INPUT_FILENAME = "p2in1.txt"
@@ -66,26 +66,17 @@ class CompilingStrategy(ABC):
 
     @abstractmethod
     def get_compile_command(self) -> str:
-        '''
-        Returns compile command for source code file
-
-        '''
+        """Returns compile command for source code file"""
         pass
 
     @abstractmethod
     def get_execute_command(self) -> str:
-        '''
-        Returns execute command for source code file
-        '''
+        """Returns execute command for source code file"""
         pass
 
 
 class CppCompilingStrategy(CompilingStrategy):
-    '''
-
-    C++ Compiling Strategy (refer to CompilingStrategy class on how to initialize)
-
-    '''
+    """C++ Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
 
     def __init__(self, filename: str, filename_with_ext: str):
         super().__init__(filename, filename_with_ext)
@@ -98,11 +89,7 @@ class CppCompilingStrategy(CompilingStrategy):
 
 
 class JavaCompilingStrategy(CompilingStrategy):
-    '''
-
-    Java Compiling Strategy (refer to CompilingStrategy class on how to initialize)
-
-    '''
+    """Java Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
 
     def __init__(self, filename: str, filename_with_ext: str):
         super().__init__(filename, filename_with_ext)
@@ -115,9 +102,7 @@ class JavaCompilingStrategy(CompilingStrategy):
 
 
 class InputStrategy(ABC):
-    '''
-    Represent a generic Input strategy
-    '''
+    """Represent a generic Input strategy"""
 
     def __init__(self, tc_dir: str):
         '''
@@ -158,11 +143,7 @@ class AutomaticInputStrategy(InputStrategy):
         self.user_output_fileobj = open(self.user_output_filepath, 'w')
 
     def __cleanup(self):
-        '''
-
-        Do necessary clean-up after executing the strategy
-
-        '''
+        """Do necessary clean-up after executing the strategy"""
         self.input_fileobj.close()
         self.user_output_fileobj.close()
 
@@ -194,11 +175,7 @@ class ManualInputStrategy(InputStrategy):
             self.temporary_user_output_filepath, 'w')
 
     def __cleanup(self):
-        '''
-
-        Do necessary clean-up after executing the strategy
-
-        '''
+        """Do necessary clean-up after executing the strategy"""
         self.user_output_fileobj.close()
         os.rename(self.temporary_input_filepath, self.input_filepath)
         os.rename(self.temporary_user_output_filepath,
@@ -213,11 +190,7 @@ class ManualInputStrategy(InputStrategy):
 
 
 class CheckSolutionStrategy(ABC):
-    '''
-
-    Represent a strategy used for verifying output produced by source code
-
-    '''
+    """Represent a strategy used for verifying output produced by source code"""
 
     def __init__(self, tc_dir: str):
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
@@ -227,16 +200,12 @@ class CheckSolutionStrategy(ABC):
             raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
 
     def setup_strategy(self):
-        '''
-
-        Setup steps needs to be done before verifying solution
-
-        '''
+        """Setup steps needs to be done before verifying solution"""
         self.user_output_fileobj = open(self.user_output_filepath, 'r')
         self.expected_output_fileobj = open(self.expected_output_filepath, 'r')
 
     @abstractmethod
-    def check_output(self) -> str:
+    def check_output(self) -> Literal['AC', 'WA']:
         '''
 
         Determines whether solution is correct 
@@ -248,22 +217,14 @@ class CheckSolutionStrategy(ABC):
 
     @abstractmethod
     def cleanup(self):
-        '''
-
-        Clean up stuffs after checking solution
-
-        '''
+        """Clean up stuffs after checking solution"""
         self.user_output_fileobj.close()
         self.expected_output_fileobj.close()
         os.remove(self.user_output_filepath)
 
 
 class LineCompareCheckStrategy(CheckSolutionStrategy):
-    '''
-
-    A strategy of verifying solution by checking user output against expected output line by line
-
-    '''
+    """A strategy of verifying solution by checking user output against expected output line by line"""
 
     def __init__(self, tc_dir: str):
         super().__init__(tc_dir)
@@ -304,29 +265,26 @@ def check_tc(execute_command: str, input_strategy: InputStrategy, check_strategy
     return tc_verdict
 
 
-def evaluate_submission(submission_filename: str, compiling_strategy: CompilingStrategy):
+def compile_submission(compile_command):
+    """Compile user submission"""
+    subprocess.call(compile_command, shell=True, cwd=os.getcwd())
+
+
+def evaluate_submission(compiling_strategy: CompilingStrategy):
     '''
     Evaluate provided submission file by running it against provided test cases
 
     Parameters:
-    submission_filename (str): Name of submission file
     compiling_strategy (CompilingStrategy): Compiling strategy used by source code
 
     '''
     compile_command = compiling_strategy.get_compile_command()
     execute_command = compiling_strategy.get_execute_command()
 
+    # Compile user submission
+    compile_submission(compile_command)
+
     verdict_list = []
-
-    # Get file path of source code file
-    submission_path = os.path.join(os.getcwd(), submission_filename)
-
-    # Raise error if source code file is not found
-    if (not os.path.isfile(submission_path)):
-        raise SubmissionFileNotFound(submission_filename)
-
-    # Compile user's submission
-    subprocess.call(compile_command, shell=True, cwd=os.getcwd())
 
     # Loop through each test case directory and get verdict of that test case
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
@@ -413,13 +371,16 @@ def get_check_solution_strategy(tc_dir: str):
     return LineCompareCheckStrategy(tc_dir)
 
 
-def main(args):
-    # Prompt for submission's filename
-    print("Enter filename: ", end='')
-    input_file = input()
+def check_valid_file(filename: str):
+    '''
+    Check if submission file is a valid file
+    If file is valid, return filename (without extension) and extension as tuple of strings
 
+    Parameters:
+    filename(str): filename with extension of user source code
+    '''
     # Extract file extension
-    idx = input_file.find('.')
+    idx = filename.find('.')
 
     # If there is no extension
     if (idx == -1):
@@ -429,12 +390,27 @@ def main(args):
     if (idx == 0):
         raise InvalidSubmissionFile("File name not found")
 
+    # Check if file exists
+    filepath = os.path.join(os.getcwd(), filename)
+    if (not os.path.isfile(filepath)):
+        raise SubmissionFileNotFound(filename)
+
+    return filename[:idx], filename[idx:]
+
+
+def main(args):
+    # Prompt for submission's filename
+    print("Enter filename: ", end='')
+    input_file = input()
+
+    filename_without_extension, extension = check_valid_file(input_file)
+
     # Generate compiling strategy for source code
     compiling_strategy = get_compiling_strategy(
-        input_file[:idx], input_file[idx:])
+        filename_without_extension, extension)
 
     # Evaluate source code
-    evaluate_submission(input_file, compiling_strategy)
+    evaluate_submission(compiling_strategy)
 
 
 if __name__ == '__main__':
