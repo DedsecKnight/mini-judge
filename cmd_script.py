@@ -74,6 +74,11 @@ class CompilingStrategy(ABC):
         """Returns execute command for source code file"""
         pass
 
+    @abstractmethod
+    def cleanup(self):
+        """Clean up files after running submission"""
+        pass
+
 
 class CppCompilingStrategy(CompilingStrategy):
     """C++ Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
@@ -87,6 +92,11 @@ class CppCompilingStrategy(CompilingStrategy):
     def get_execute_command(self) -> str:
         return f'{self.filename_without_extension}.exe'
 
+    def cleanup(self):
+        for file in os.listdir(os.path.join(os.getcwd())):
+            if (file[-3:] == "exe"):
+                os.remove(os.path.join(os.getcwd(), file))
+
 
 class JavaCompilingStrategy(CompilingStrategy):
     """Java Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
@@ -99,6 +109,11 @@ class JavaCompilingStrategy(CompilingStrategy):
 
     def get_execute_command(self) -> str:
         return f'java {self.filename_without_extension}'
+
+    def cleanup(self):
+        for file in os.listdir(os.path.join(os.getcwd())):
+            if (file[-5:] == "class"):
+                os.remove(os.path.join(os.getcwd(), file))
 
 
 class InputStrategy(ABC):
@@ -293,7 +308,11 @@ def evaluate_submission(compiling_strategy: CompilingStrategy):
             tc_dir), get_check_solution_strategy(tc_dir))
         verdict_list.append(tc_verdict)
 
+    # Print verdict of all test cases
     print_verdict(verdict_list)
+
+    # Clean up
+    compiling_strategy.cleanup()
 
 
 def print_verdict(verdict_list: List[str]):
