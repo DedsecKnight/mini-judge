@@ -12,7 +12,6 @@ Some notes before using:
     
 
 '''
-from io import TextIOWrapper
 from abc import ABC, abstractmethod
 import subprocess
 import os
@@ -371,11 +370,15 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
     extension: extension of the source code file
 
     '''
-    if (extension == '.cpp'):
-        return CppCompilingStrategy(filename_without_extension, filename_without_extension + extension)
-    if (extension == '.java'):
-        return JavaCompilingStrategy(filename_without_extension, filename_without_extension + extension)
-    raise InvalidSubmissionFile("Extension is not supported")
+    FACTORY = {
+        '.cpp': CppCompilingStrategy,
+        '.java': JavaCompilingStrategy
+    }
+
+    if (extension not in FACTORY):
+        raise InvalidSubmissionFile("Extension is not supported")
+
+    return FACTORY[extension](filename_without_extension, filename_without_extension + extension)
 
 
 def get_input_strategy(tc_dir: str) -> InputStrategy:
@@ -387,11 +390,15 @@ def get_input_strategy(tc_dir: str) -> InputStrategy:
     tc_dir(str): directory of current test case
 
     '''
-    if (INPUT_STRATEGY == "automatic"):
-        return AutomaticInputStrategy(tc_dir)
-    if (INPUT_STRATEGY == "manual"):
-        return ManualInputStrategy(tc_dir)
-    raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
+    FACTORY = {
+        'automatic': AutomaticInputStrategy,
+        'manual': ManualInputStrategy
+    }
+
+    if (INPUT_STRATEGY not in FACTORY):
+        raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
+
+    return FACTORY[INPUT_STRATEGY](tc_dir)
 
 
 def get_check_solution_strategy(tc_dir: str):
