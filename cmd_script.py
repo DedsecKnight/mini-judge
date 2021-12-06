@@ -22,6 +22,8 @@ INPUT_FILENAME = "p2in1.txt"
 OUTPUT_FILENAME = "p2out1.txt"
 USER_OUTPUT_FILENAME = "output.user.out"
 TC_DIR = "test_cases"
+CHECKER_FILENAME = "checker.py"
+CHECK_STRATEGY = "checker"
 
 
 class CustomException(Exception):
@@ -47,6 +49,11 @@ class InvalidSubmissionFile(CustomException):
 class InvalidStrategy(CustomException):
     def __init__(self, err_msg):
         super().__init__(err_msg)
+
+
+class CheckerNotFound(CustomException):
+    def __init__(self):
+        super().__init__("Checker file not found")
 
 
 class CompilingStrategy(ABC):
@@ -262,6 +269,42 @@ class LineCompareCheckStrategy(CheckSolutionStrategy):
         return verdict
 
 
+class CheckerCompareCheckStrategy(CheckSolutionStrategy):
+    """A strategy of verifying solution using a checker"""
+
+    def __init__(self, tc_dir: str):
+        super().__init__(tc_dir)
+        self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
+
+    def setup_strategy(self):
+        checker_filepath = os.path.join(os.getcwd(), CHECKER_FILENAME)
+        if (not os.path.isfile(checker_filepath)):
+            raise CheckerNotFound()
+
+    def evaluate_python_compiler(self) -> Literal['python', 'python3']:
+        '''Determine the appropriate python compiler based on operating system'''
+        return 'python' if (sys.platform == 'win32') else 'python3'
+
+    def run_checker(self) -> int:
+        '''
+        Run checker with provided input file and output files
+
+        Returns exit code of checker
+        '''
+        p = subprocess.Popen([self.evaluate_python_compiler(), '-u', CHECKER_FILENAME, self.input_filepath,
+                             self.user_output_filepath, self.expected_output_filepath], cwd=os.getcwd())
+        return p.wait()
+
+    def check_output(self):
+        checker_exit_code = self.run_checker()
+        verdict = 'AC' if (checker_exit_code == 0) else 'WA'
+        self.cleanup()
+        return verdict
+
+    def cleanup(self):
+        os.remove(self.user_output_filepath)
+
+
 def check_tc(execute_command: str, input_strategy: InputStrategy, check_strategy: CheckSolutionStrategy):
     '''
     Run user's code against provided a test case
@@ -280,7 +323,7 @@ def check_tc(execute_command: str, input_strategy: InputStrategy, check_strategy
     return tc_verdict
 
 
-def compile_submission(compile_command):
+def compile_submission(compile_command: str):
     """Compile user submission"""
     subprocess.call(compile_command, shell=True, cwd=os.getcwd())
 
@@ -378,7 +421,7 @@ def get_input_strategy(tc_dir: str) -> InputStrategy:
     return FACTORY[INPUT_STRATEGY](tc_dir)
 
 
-def get_check_solution_strategy(tc_dir: str):
+def get_check_solution_strategy(tc_dir: str) -> CheckSolutionStrategy:
     '''
 
     Generate a strategy to verify solution
@@ -387,7 +430,15 @@ def get_check_solution_strategy(tc_dir: str):
     tc_dir(str): directory of current test case
 
     '''
-    return LineCompareCheckStrategy(tc_dir)
+    FACTORY = {
+        'line': LineCompareCheckStrategy,
+        'checker': CheckerCompareCheckStrategy
+    }
+
+    if (CHECK_STRATEGY not in FACTORY):
+        raise InvalidStrategy("Check Solution Strategy not found")
+
+    return FACTORY[CHECK_STRATEGY](tc_dir)
 
 
 def check_valid_file(filename: str):
