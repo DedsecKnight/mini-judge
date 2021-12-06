@@ -2,10 +2,7 @@
 
 ## Update
 
--   Mini-Judge now supports 2 input strategies
-    -   Automatic Input Strategy: used for when source code is expected to read from stdin
-    -   Manual Input Strategy: used for when source code is expected to read directly from test case file
--   Refer to [To Change Input Strategy](#to-change-input-strategy) for more details
+-   Mini-Judge now supports Checker Strategy for validating solution correctness, which can be used when solution correctness cannot be determined using Line by Line strategy.
 
 ## Introduction
 
