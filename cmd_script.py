@@ -15,7 +15,7 @@ Some notes before using:
 from abc import ABC, abstractmethod
 import subprocess
 import os
-from typing import List, Literal
+from typing import List, Literal, Tuple
 
 INPUT_STRATEGY = "manual"
 INPUT_FILENAME = "p2in1.txt"
@@ -306,7 +306,7 @@ def evaluate_submission(compiling_strategy: CompilingStrategy):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
         tc_verdict = check_tc(execute_command, get_input_strategy(
             tc_dir), get_check_solution_strategy(tc_dir))
-        verdict_list.append(tc_verdict)
+        verdict_list.append((directory, tc_verdict))
 
     # Print verdict of all test cases
     print_verdict(verdict_list)
@@ -315,7 +315,7 @@ def evaluate_submission(compiling_strategy: CompilingStrategy):
     compiling_strategy.cleanup()
 
 
-def print_verdict(verdict_list: List[str]):
+def print_verdict(verdict_list: List[Tuple[str, str]]):
     '''
     Print test case verdict with appropriate format
 
@@ -324,15 +324,15 @@ def print_verdict(verdict_list: List[str]):
 
     '''
     print()
-    for (tc_idx, verdict) in enumerate(verdict_list):
+    for (directory, verdict) in verdict_list:
         passed = verdict.rstrip('\r\n') == "AC"
 
         if (not passed):
             print("\033[91m{}\033[00m".format(
-                " x Test case #" + str(tc_idx+1) + " failed"))
+                f" x Test case {directory} failed"))
         else:
             print("\033[92m{}\033[00m".format(
-                "Test case #" + str(tc_idx+1) + " passed"))
+                f"Test case {directory} passed"))
         sys.stdout.flush()
     print()
 
