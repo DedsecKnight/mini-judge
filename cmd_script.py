@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import subprocess
 import os
 from typing import List, Literal, Tuple
+import argparse
+from dataclasses import dataclass
 
 INPUT_STRATEGY = "automatic"
 INPUT_FILENAME = "input.in"
@@ -18,6 +20,15 @@ class CustomException(Exception):
     def __init__(self, msg: str):
         super().__init__(msg)
         self.msg = msg
+
+
+@dataclass
+class ArgumentConfig():
+    '''
+    Object used to store config from CLI arguments
+    '''
+    filename: str = None
+    test_cases: str = None
 
 
 class SubmissionFileNotFound(CustomException):
@@ -481,16 +492,13 @@ def cleanup_dir(dirname: str):
             os.unlink(f'{dirname}/{filename}')
 
 
-def import_test_cases(args: List[str]) -> None:
+def import_test_cases(ext_tc_dir: str) -> None:
     '''
     Import external test cases. 
     Folder can only contains .in and .out files
     '''
-    if len(args) <= 1:
+    if not ext_tc_dir:
         return
-    if args[1] != '-tc':
-        return
-    ext_tc_dir = args[2]
 
     if not os.path.isdir(ext_tc_dir):
         raise TCNotFound(ext_tc_dir)
@@ -510,14 +518,60 @@ def import_test_cases(args: List[str]) -> None:
                   f'{TC_DIR}/{tc_name}/{OUTPUT_FILENAME}')
 
 
-def main(args: List[str]):
+def parse_args():
+    '''
+    Parse CLI arguments
+
+    Parameters: 
+        - args: argument list stored as string array
+
+    Returns:
+        ArgumentParser object containing parsed data
+    '''
+    arg_config = ArgumentConfig()
+
+    parser = argparse.ArgumentParser(
+        description="Mini Judge to test your solution against pre-generated test cases",
+    )
+
+    parser.add_argument(
+        '-f', '--filename', help="Name of solution file", action='store')
+    parser.add_argument('-tc', '--test_cases',
+                        help="Location of test case", action="store")
+
+    parser.parse_args(namespace=arg_config)
+
+    return arg_config
+
+
+def get_filename(parsed_args: ArgumentConfig):
+    '''
+    Determine submission filename.
+
+    If filename is not provided as CLI argument, it will be prompted.
+
+    Parameters: 
+        - parsed_args: object containing parsed argument configurations
+    '''
+    if not parsed_args.filename:
+        print("Enter filename: ", end='')
+        input_file = input()
+        return input_file
+
+    return parsed_args.filename
+
+
+def main():
     """Driver code"""
+
+    # Parse arguments
+    parsed_args = parse_args()
+
     # Import external test cases
-    import_test_cases(args)
+    import_test_cases(parsed_args.test_cases)
 
     # Prompt for submission's filename
-    print("Enter filename: ", end='')
-    input_file = input()
+    input_file = get_filename(parsed_args)
 
     filename_without_extension, extension = check_valid_file(input_file)
 
@@ -532,7 +586,7 @@ def main(args: List[str]):
 if __name__ == '__main__':
     import sys
     try:
-        sys.exit(main(sys.argv))
+        sys.exit(main())
     except CustomException as err:
         print(f"\033[91m{err.msg}\033[00m")
         sys.exit(1)
