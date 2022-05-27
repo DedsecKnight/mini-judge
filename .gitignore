@@ -4,3 +4,5 @@
 test_cases/**
 __pycache__/
 .vscode
+*.cpp
+checker.py
