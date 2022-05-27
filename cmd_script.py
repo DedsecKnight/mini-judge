@@ -1,17 +1,3 @@
-'''
-
-To change compile command, modify the return value of get_compile_command function for the strategy that you will be using
-    e.g: If your code is written in C++, you can modify return value of get_compile_command function of the CppCompilingStrategy class. 
-        Same goes for Java users
-
-To change execute command, do the same with changing compile command, but with the get_execute_command function of respective strategy
-
-Some notes before using: 
-    - It may takes some time to run through all the test cases
-    - Before running your source code against this script, make sure that your code will read input from stdin instead of from the text file
-    
-
-'''
 from abc import ABC, abstractmethod
 import subprocess
 import os
@@ -27,31 +13,38 @@ CHECK_STRATEGY = "checker"
 
 
 class CustomException(Exception):
+    """Represent a custom exception"""
+
     def __init__(self, msg: str):
+        super().__init__(msg)
         self.msg = msg
 
 
 class SubmissionFileNotFound(CustomException):
+    """Exception to be raise when submission file is not found"""
+
     def __init__(self, submission_filename: str):
         super().__init__(f"Submission file {submission_filename} not found")
 
 
 class TCNotFound(CustomException):
+    """Exception to be raise when test case is not found in current directory"""
+
     def __init__(self, tc_dirname: str):
         super().__init__(f"Test case not found in directory {tc_dirname}")
 
 
 class InvalidSubmissionFile(CustomException):
-    def __init__(self, err_msg: str):
-        super().__init__(err_msg)
+    """Exception to be raise when invalid submission file is found"""
 
 
 class InvalidStrategy(CustomException):
-    def __init__(self, err_msg):
-        super().__init__(err_msg)
+    """Exception to be raised when invalid strategy is found"""
 
 
 class CheckerNotFound(CustomException):
+    """Exception to be raised when checker file is not found"""
+
     def __init__(self):
         super().__init__("Checker file not found")
 
@@ -63,7 +56,7 @@ class CompilingStrategy(ABC):
 
     Constructor requires 2 parameters:
         filename(str): name of source code file WITHOUT extension
-        filename_with_ext(str): name of source code file WITH extension 
+        filename_with_ext(str): name of source code file WITH extension
 
     '''
 
@@ -74,42 +67,37 @@ class CompilingStrategy(ABC):
     @abstractmethod
     def get_compile_command(self) -> str:
         """Returns compile command for source code file"""
-        pass
 
     @abstractmethod
     def get_execute_command(self) -> str:
         """Returns execute command for source code file"""
-        pass
 
     @abstractmethod
     def cleanup(self):
         """Clean up files after running submission"""
-        pass
 
 
 class CppCompilingStrategy(CompilingStrategy):
     """C++ Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
 
-    def __init__(self, filename: str, filename_with_ext: str):
-        super().__init__(filename, filename_with_ext)
-
     def get_compile_command(self) -> str:
-        return f'g++ -std=c++17 -Wshadow -Wall -o "{self.filename_without_extension}" "{self.filename_with_extension}" -O2 -Wno-unused-result'
+        return f' \
+        g++ -std=c++17 -Wshadow -Wall -o \
+            "{self.filename_without_extension}" \
+                "{self.filename_with_extension}" \
+                    -O2 -Wno-unused-result'
 
     def get_execute_command(self) -> str:
         return f'{self.filename_without_extension}.exe'
 
     def cleanup(self):
         for file in os.listdir(os.path.join(os.getcwd())):
-            if (file[-3:] == "exe"):
+            if file[-3:] == "exe":
                 os.remove(os.path.join(os.getcwd(), file))
 
 
 class JavaCompilingStrategy(CompilingStrategy):
     """Java Compiling Strategy (refer to CompilingStrategy class on how to initialize)"""
-
-    def __init__(self, filename: str, filename_with_ext: str):
-        super().__init__(filename, filename_with_ext)
 
     def get_compile_command(self) -> str:
         return f'javac {self.filename_with_extension}'
@@ -119,7 +107,7 @@ class JavaCompilingStrategy(CompilingStrategy):
 
     def cleanup(self):
         for file in os.listdir(os.path.join(os.getcwd())):
-            if (file[-5:] == "class"):
+            if file[-5:] == "class":
                 os.remove(os.path.join(os.getcwd(), file))
 
 
@@ -136,7 +124,7 @@ class InputStrategy(ABC):
         self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
 
-        if (not os.path.isfile(self.input_filepath)):
+        if not os.path.isfile(self.input_filepath):
             raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
 
     @abstractmethod
@@ -148,7 +136,6 @@ class InputStrategy(ABC):
         execute_command(str): command to be executed
 
         '''
-        pass
 
 
 class AutomaticInputStrategy(InputStrategy):
@@ -161,8 +148,9 @@ class AutomaticInputStrategy(InputStrategy):
 
     def __init__(self, tc_dir: str):
         super().__init__(tc_dir)
-        self.input_fileobj = open(self.input_filepath)
-        self.user_output_fileobj = open(self.user_output_filepath, 'w')
+        self.input_fileobj = open(self.input_filepath, encoding='utf-8')
+        self.user_output_fileobj = open(
+            self.user_output_filepath, 'w', encoding='utf-8')
 
     def __cleanup(self):
         """Do necessary clean-up after executing the strategy"""
@@ -181,7 +169,7 @@ class ManualInputStrategy(InputStrategy):
     '''
 
     Manual Input Strategy
-    Use case: When source code is expected to read data directly from text file 
+    Use case: When source code is expected to read data directly from text file
 
     '''
 
@@ -194,7 +182,7 @@ class ManualInputStrategy(InputStrategy):
 
         os.rename(self.input_filepath, self.temporary_input_filepath)
         self.user_output_fileobj = open(
-            self.temporary_user_output_filepath, 'w')
+            self.temporary_user_output_filepath, 'w', encoding='utf-8')
 
     def __cleanup(self):
         """Do necessary clean-up after executing the strategy"""
@@ -204,9 +192,9 @@ class ManualInputStrategy(InputStrategy):
                   self.user_output_filepath)
 
     def execute_strategy(self, execute_command: str):
-        p = subprocess.Popen(
+        execute_process = subprocess.Popen(
             execute_command, stdout=self.user_output_fileobj, shell=True, cwd=os.getcwd())
-        p.wait()
+        execute_process.wait()
         self.user_output_fileobj.flush()
         self.__cleanup()
 
@@ -218,24 +206,28 @@ class CheckSolutionStrategy(ABC):
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
         self.expected_output_filepath = os.path.join(tc_dir, OUTPUT_FILENAME)
 
-        if (not os.path.isfile(self.expected_output_filepath)):
+        if not os.path.isfile(self.expected_output_filepath):
             raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
+
+        self.user_output_fileobj = None
+        self.expected_output_fileobj = None
 
     def setup_strategy(self):
         """Setup steps needs to be done before verifying solution"""
-        self.user_output_fileobj = open(self.user_output_filepath, 'r')
-        self.expected_output_fileobj = open(self.expected_output_filepath, 'r')
+        self.user_output_fileobj = open(
+            self.user_output_filepath, 'r', encoding='utf-8')
+        self.expected_output_fileobj = open(
+            self.expected_output_filepath, 'r', encoding='utf-8')
 
     @abstractmethod
     def check_output(self) -> Literal['AC', 'WA']:
         '''
 
-        Determines whether solution is correct 
+        Determines whether solution is correct
 
         Returns "AC" if solution is correct, "WA" otherwise
 
         '''
-        pass
 
     @abstractmethod
     def cleanup(self):
@@ -246,13 +238,9 @@ class CheckSolutionStrategy(ABC):
 
 
 class LineCompareCheckStrategy(CheckSolutionStrategy):
-    """A strategy of verifying solution by checking user output against expected output line by line"""
-
-    def __init__(self, tc_dir: str):
-        super().__init__(tc_dir)
-
-    def cleanup(self):
-        super().cleanup()
+    """
+    A strategy of verifying solution by checking user output against expected output line by line
+    """
 
     def check_output(self):
         self.setup_strategy()
@@ -261,7 +249,7 @@ class LineCompareCheckStrategy(CheckSolutionStrategy):
             user_line = self.user_output_fileobj.readline().rstrip('\r\n')
             expected_line = line.rstrip('\r\n')
 
-            if (user_line != expected_line):
+            if user_line != expected_line:
                 verdict = "WA"
                 break
 
@@ -278,10 +266,11 @@ class CheckerCompareCheckStrategy(CheckSolutionStrategy):
 
     def setup_strategy(self):
         checker_filepath = os.path.join(os.getcwd(), CHECKER_FILENAME)
-        if (not os.path.isfile(checker_filepath)):
+        if not os.path.isfile(checker_filepath):
             raise CheckerNotFound()
 
-    def evaluate_python_compiler(self) -> Literal['python', 'python3']:
+    @staticmethod
+    def evaluate_python_compiler() -> Literal['python', 'python3']:
         '''Determine the appropriate python compiler based on operating system'''
         return 'python' if (sys.platform == 'win32') else 'python3'
 
@@ -291,9 +280,16 @@ class CheckerCompareCheckStrategy(CheckSolutionStrategy):
 
         Returns exit code of checker
         '''
-        p = subprocess.Popen([self.evaluate_python_compiler(), '-u', CHECKER_FILENAME, self.input_filepath,
-                             self.user_output_filepath, self.expected_output_filepath], cwd=os.getcwd())
-        return p.wait()
+        checker_process = subprocess.Popen([
+            CheckerCompareCheckStrategy.evaluate_python_compiler(),
+            '-u',
+            CHECKER_FILENAME,
+            self.input_filepath,
+            self.user_output_filepath,
+            self.expected_output_filepath
+        ], cwd=os.getcwd())
+
+        return checker_process.wait()
 
     def check_output(self):
         checker_exit_code = self.run_checker()
@@ -305,12 +301,17 @@ class CheckerCompareCheckStrategy(CheckSolutionStrategy):
         os.remove(self.user_output_filepath)
 
 
-def check_tc(execute_command: str, input_strategy: InputStrategy, check_strategy: CheckSolutionStrategy):
+def check_tc(
+    execute_command: str,
+    input_strategy: InputStrategy,
+    check_strategy: CheckSolutionStrategy
+):
     '''
     Run user's code against provided a test case
 
     Parameters:
-    execute_command (str): Command used to execute file generated from compilation of submission file
+    execute_command (str): Command used to execute file generated from
+    compilation of submission file
     input_strategy (InputStrategy): Input strategy that is used for this source code
     check_strategy (CheckSolutionStrategy): Strategy used by source code to verify correctness
 
@@ -370,12 +371,12 @@ def print_verdict(verdict_list: List[Tuple[str, str]]):
     for (directory, verdict) in verdict_list:
         passed = verdict.rstrip('\r\n') == "AC"
 
-        if (not passed):
-            print("\033[91m{}\033[00m".format(
-                f" x Test case {directory} failed"))
+        if not passed:
+            msg = f" x Test case {directory} failed"
+            print(f"\033[91m{msg}\033[00m")
         else:
-            print("\033[92m{}\033[00m".format(
-                f"Test case {directory} passed"))
+            msg = f"Test case {directory} passed"
+            print(f"\033[92m{msg}\033[00m")
         sys.stdout.flush()
     print()
 
@@ -385,20 +386,23 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
 
     Generate a compiling strategy based on extension of source code file
 
-    Parameters: 
+    Parameters:
     filename_without_extension: file name of the source code file without extension
     extension: extension of the source code file
 
     '''
-    FACTORY = {
+    instance_factory = {
         '.cpp': CppCompilingStrategy,
         '.java': JavaCompilingStrategy
     }
 
-    if (extension not in FACTORY):
+    if extension not in instance_factory:
         raise InvalidSubmissionFile("Extension is not supported")
 
-    return FACTORY[extension](filename_without_extension, filename_without_extension + extension)
+    return instance_factory[extension](
+        filename_without_extension,
+        filename_without_extension + extension
+    )
 
 
 def get_input_strategy(tc_dir: str) -> InputStrategy:
@@ -410,15 +414,15 @@ def get_input_strategy(tc_dir: str) -> InputStrategy:
     tc_dir(str): directory of current test case
 
     '''
-    FACTORY = {
+    instance_factory = {
         'automatic': AutomaticInputStrategy,
         'manual': ManualInputStrategy
     }
 
-    if (INPUT_STRATEGY not in FACTORY):
+    if INPUT_STRATEGY not in instance_factory:
         raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
 
-    return FACTORY[INPUT_STRATEGY](tc_dir)
+    return instance_factory[INPUT_STRATEGY](tc_dir)
 
 
 def get_check_solution_strategy(tc_dir: str) -> CheckSolutionStrategy:
@@ -430,15 +434,15 @@ def get_check_solution_strategy(tc_dir: str) -> CheckSolutionStrategy:
     tc_dir(str): directory of current test case
 
     '''
-    FACTORY = {
+    instance_factory = {
         'line': LineCompareCheckStrategy,
         'checker': CheckerCompareCheckStrategy
     }
 
-    if (CHECK_STRATEGY not in FACTORY):
+    if CHECK_STRATEGY not in instance_factory:
         raise InvalidStrategy("Check Solution Strategy not found")
 
-    return FACTORY[CHECK_STRATEGY](tc_dir)
+    return instance_factory[CHECK_STRATEGY](tc_dir)
 
 
 def check_valid_file(filename: str):
@@ -453,22 +457,23 @@ def check_valid_file(filename: str):
     idx = filename.find('.')
 
     # If there is no extension
-    if (idx == -1):
+    if idx == -1:
         raise InvalidSubmissionFile("Extension not included")
 
     # If filename only contains extension
-    if (idx == 0):
+    if idx == 0:
         raise InvalidSubmissionFile("File name not found")
 
     # Check if file exists
     filepath = os.path.join(os.getcwd(), filename)
-    if (not os.path.isfile(filepath)):
+    if not os.path.isfile(filepath):
         raise SubmissionFileNotFound(filename)
 
     return filename[:idx], filename[idx:]
 
 
-def main(args):
+def main():
+    """Driver code"""
     # Prompt for submission's filename
     print("Enter filename: ", end='')
     input_file = input()
@@ -486,8 +491,7 @@ def main(args):
 if __name__ == '__main__':
     import sys
     try:
-        sys.exit(main(sys.argv))
+        sys.exit(main())
     except CustomException as err:
-        print("\033[91m{}\033[00m" .format(
-            err.msg))
-        exit(1)
+        print(f"\033[91m{err.msg}\033[00m")
+        sys.exit(1)

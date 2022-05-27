@@ -3,3 +3,4 @@
 *.zip
 test_cases/**
 __pycache__/
+.vscode
