@@ -3,13 +3,13 @@ import subprocess
 import os
 from typing import List, Literal, Tuple
 
-INPUT_STRATEGY = "manual"
-INPUT_FILENAME = "p2in1.txt"
-OUTPUT_FILENAME = "p2out1.txt"
+INPUT_STRATEGY = "automatic"
+INPUT_FILENAME = "input.in"
+OUTPUT_FILENAME = "input.ans"
 USER_OUTPUT_FILENAME = "output.user.out"
 TC_DIR = "test_cases"
 CHECKER_FILENAME = "checker.py"
-CHECK_STRATEGY = "checker"
+CHECK_STRATEGY = "line"
 
 
 class CustomException(Exception):
@@ -229,7 +229,6 @@ class CheckSolutionStrategy(ABC):
 
         '''
 
-    @abstractmethod
     def cleanup(self):
         """Clean up stuffs after checking solution"""
         self.user_output_fileobj.close()
@@ -472,8 +471,50 @@ def check_valid_file(filename: str):
     return filename[:idx], filename[idx:]
 
 
-def main():
+def cleanup_dir(dirname: str):
+    '''Clean up test_cases directory'''
+    for filename in os.listdir(dirname):
+        if os.path.isdir(f'{dirname}/{filename}'):
+            cleanup_dir(f'{dirname}/{filename}')
+            os.rmdir(dirname)
+        else:
+            os.unlink(f'{dirname}/{filename}')
+
+
+def import_test_cases(args: List[str]) -> None:
+    '''
+    Import external test cases. 
+    Folder can only contains .in and .out files
+    '''
+    if len(args) <= 1:
+        return
+    if args[1] != '-tc':
+        return
+    ext_tc_dir = args[2]
+
+    if not os.path.isdir(ext_tc_dir):
+        raise TCNotFound(ext_tc_dir)
+
+    cleanup_dir(TC_DIR)
+
+    tc_names = set(filename.split('.')[0]
+                   for filename in os.listdir(ext_tc_dir))
+
+    for tc_name in tc_names:
+        input_filename = f'{tc_name}.in'
+        output_filename = f'{tc_name}.ans'
+        os.mkdir(f'{TC_DIR}/{tc_name}')
+        os.rename(f'{ext_tc_dir}/{input_filename}',
+                  f'{TC_DIR}/{tc_name}/{INPUT_FILENAME}')
+        os.rename(f'{ext_tc_dir}/{output_filename}',
+                  f'{TC_DIR}/{tc_name}/{OUTPUT_FILENAME}')
+
+
+def main(args: List[str]):
     """Driver code"""
+    # Import external test cases
+    import_test_cases(args)
+
     # Prompt for submission's filename
     print("Enter filename: ", end='')
     input_file = input()
@@ -491,7 +532,7 @@ def main():
 if __name__ == '__main__':
     import sys
     try:
-        sys.exit(main())
+        sys.exit(main(sys.argv))
     except CustomException as err:
         print(f"\033[91m{err.msg}\033[00m")
         sys.exit(1)
