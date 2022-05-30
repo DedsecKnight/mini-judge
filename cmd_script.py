@@ -2,14 +2,11 @@ from abc import ABC, abstractmethod
 import subprocess
 import os
 from typing import List, Literal, Tuple
+import argparse
+from dataclasses import dataclass
 
-INPUT_STRATEGY = "automatic"
-INPUT_FILENAME = "input.in"
-OUTPUT_FILENAME = "input.ans"
 USER_OUTPUT_FILENAME = "output.user.out"
 TC_DIR = "test_cases"
-CHECKER_FILENAME = "checker.py"
-CHECK_STRATEGY = "line"
 
 
 class CustomException(Exception):
@@ -18,6 +15,21 @@ class CustomException(Exception):
     def __init__(self, msg: str):
         super().__init__(msg)
         self.msg = msg
+
+
+@dataclass
+class ArgumentConfig():
+    '''
+    Object used to store config from CLI arguments
+    '''
+    # Initialize default configuration
+    filename: str = None
+    test_cases: str = None
+    input_strat: str = "automatic"
+    check_strat: str = "line"
+    checker_name: str = "checker.py"
+    input_filename = "input.in"
+    output_filename = "input.ans"
 
 
 class SubmissionFileNotFound(CustomException):
@@ -114,14 +126,15 @@ class JavaCompilingStrategy(CompilingStrategy):
 class InputStrategy(ABC):
     """Represent a generic Input strategy"""
 
-    def __init__(self, tc_dir: str):
+    def __init__(self, parsed_args: ArgumentConfig, tc_dir: str):
         '''
 
         Generic initialization of an input strategy
         Generate path of input and user output file and check if input file exists
 
         '''
-        self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
+        self.parsed_args = parsed_args
+        self.input_filepath = os.path.join(tc_dir, parsed_args.input_filename)
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
 
         if not os.path.isfile(self.input_filepath):
@@ -146,8 +159,8 @@ class AutomaticInputStrategy(InputStrategy):
 
     '''
 
-    def __init__(self, tc_dir: str):
-        super().__init__(tc_dir)
+    def __init__(self, parsed_args: ArgumentConfig, tc_dir: str):
+        super().__init__(parsed_args, tc_dir)
         self.input_fileobj = open(self.input_filepath, encoding='utf-8')
         self.user_output_fileobj = open(
             self.user_output_filepath, 'w', encoding='utf-8')
@@ -173,10 +186,10 @@ class ManualInputStrategy(InputStrategy):
 
     '''
 
-    def __init__(self, tc_dir: str):
-        super().__init__(tc_dir)
+    def __init__(self, parsed_args: ArgumentConfig, tc_dir: str):
+        super().__init__(parsed_args, tc_dir)
         self.temporary_input_filepath = os.path.join(
-            os.getcwd(), INPUT_FILENAME)
+            os.getcwd(), parsed_args.input_filename)
         self.temporary_user_output_filepath = os.path.join(
             os.getcwd(), USER_OUTPUT_FILENAME)
 
@@ -202,9 +215,11 @@ class ManualInputStrategy(InputStrategy):
 class CheckSolutionStrategy(ABC):
     """Represent a strategy used for verifying output produced by source code"""
 
-    def __init__(self, tc_dir: str):
+    def __init__(self, parsed_args: ArgumentConfig, tc_dir: str):
+        self.parsed_args = parsed_args
         self.user_output_filepath = os.path.join(tc_dir, USER_OUTPUT_FILENAME)
-        self.expected_output_filepath = os.path.join(tc_dir, OUTPUT_FILENAME)
+        self.expected_output_filepath = os.path.join(
+            tc_dir, parsed_args.output_filename)
 
         if not os.path.isfile(self.expected_output_filepath):
             raise TCNotFound(os.path.basename(os.path.normpath(tc_dir)))
@@ -259,12 +274,13 @@ class LineCompareCheckStrategy(CheckSolutionStrategy):
 class CheckerCompareCheckStrategy(CheckSolutionStrategy):
     """A strategy of verifying solution using a checker"""
 
-    def __init__(self, tc_dir: str):
-        super().__init__(tc_dir)
-        self.input_filepath = os.path.join(tc_dir, INPUT_FILENAME)
+    def __init__(self, parsed_args: ArgumentConfig, tc_dir: str):
+        super().__init__(parsed_args, tc_dir)
+        self.input_filepath = os.path.join(tc_dir, parsed_args.input_filename)
 
     def setup_strategy(self):
-        checker_filepath = os.path.join(os.getcwd(), CHECKER_FILENAME)
+        checker_filepath = os.path.join(
+            os.getcwd(), self.parsed_args.checker_name)
         if not os.path.isfile(checker_filepath):
             raise CheckerNotFound()
 
@@ -282,7 +298,7 @@ class CheckerCompareCheckStrategy(CheckSolutionStrategy):
         checker_process = subprocess.Popen([
             CheckerCompareCheckStrategy.evaluate_python_compiler(),
             '-u',
-            CHECKER_FILENAME,
+            self.parsed_args.checker_name,
             self.input_filepath,
             self.user_output_filepath,
             self.expected_output_filepath
@@ -328,7 +344,7 @@ def compile_submission(compile_command: str):
     subprocess.call(compile_command, shell=True, cwd=os.getcwd())
 
 
-def evaluate_submission(compiling_strategy: CompilingStrategy):
+def evaluate_submission(parsed_args: ArgumentConfig, compiling_strategy: CompilingStrategy):
     '''
     Evaluate provided submission file by running it against provided test cases
 
@@ -347,8 +363,11 @@ def evaluate_submission(compiling_strategy: CompilingStrategy):
     # Loop through each test case directory and get verdict of that test case
     for directory in os.listdir(os.path.join(os.getcwd(), TC_DIR)):
         tc_dir = os.path.join(os.getcwd(), TC_DIR, directory)
-        tc_verdict = check_tc(execute_command, get_input_strategy(
-            tc_dir), get_check_solution_strategy(tc_dir))
+        tc_verdict = check_tc(
+            execute_command,
+            get_input_strategy(parsed_args, tc_dir),
+            get_check_solution_strategy(parsed_args, tc_dir)
+        )
         verdict_list.append((directory, tc_verdict))
 
     # Print verdict of all test cases
@@ -404,7 +423,7 @@ def get_compiling_strategy(filename_without_extension: str, extension: str) -> C
     )
 
 
-def get_input_strategy(tc_dir: str) -> InputStrategy:
+def get_input_strategy(parsed_args: ArgumentConfig, tc_dir: str) -> InputStrategy:
     '''
 
     Generate input strategy based on configuration
@@ -418,13 +437,14 @@ def get_input_strategy(tc_dir: str) -> InputStrategy:
         'manual': ManualInputStrategy
     }
 
-    if INPUT_STRATEGY not in instance_factory:
-        raise InvalidStrategy(f'Input strategy {INPUT_STRATEGY} not supported')
+    if parsed_args.input_strat not in instance_factory:
+        raise InvalidStrategy(
+            f'Input strategy {parsed_args.input_strat} not supported')
 
-    return instance_factory[INPUT_STRATEGY](tc_dir)
+    return instance_factory[parsed_args.input_strat](parsed_args, tc_dir)
 
 
-def get_check_solution_strategy(tc_dir: str) -> CheckSolutionStrategy:
+def get_check_solution_strategy(parsed_args: ArgumentConfig, tc_dir: str) -> CheckSolutionStrategy:
     '''
 
     Generate a strategy to verify solution
@@ -438,10 +458,10 @@ def get_check_solution_strategy(tc_dir: str) -> CheckSolutionStrategy:
         'checker': CheckerCompareCheckStrategy
     }
 
-    if CHECK_STRATEGY not in instance_factory:
+    if parsed_args.check_strat not in instance_factory:
         raise InvalidStrategy("Check Solution Strategy not found")
 
-    return instance_factory[CHECK_STRATEGY](tc_dir)
+    return instance_factory[parsed_args.check_strat](parsed_args, tc_dir)
 
 
 def check_valid_file(filename: str):
@@ -481,23 +501,22 @@ def cleanup_dir(dirname: str):
             os.unlink(f'{dirname}/{filename}')
 
 
-def import_test_cases(args: List[str]) -> None:
+def import_test_cases(parsed_args: ArgumentConfig) -> None:
     '''
-    Import external test cases. 
+    Import external test cases.
     Folder can only contains .in and .out files
     '''
-    if len(args) <= 1:
+    ext_tc_dir = parsed_args.test_cases
+
+    if not ext_tc_dir:
         return
-    if args[1] != '-tc':
-        return
-    ext_tc_dir = args[2]
 
     if not os.path.isdir(ext_tc_dir):
         raise TCNotFound(ext_tc_dir)
 
     cleanup_dir(TC_DIR)
 
-    tc_names = set(filename.split('.')[0]
+    tc_names = set(".".join(filename.split('.')[:-1])
                    for filename in os.listdir(ext_tc_dir))
 
     for tc_name in tc_names:
@@ -505,19 +524,80 @@ def import_test_cases(args: List[str]) -> None:
         output_filename = f'{tc_name}.ans'
         os.mkdir(f'{TC_DIR}/{tc_name}')
         os.rename(f'{ext_tc_dir}/{input_filename}',
-                  f'{TC_DIR}/{tc_name}/{INPUT_FILENAME}')
+                  f'{TC_DIR}/{tc_name}/{parsed_args.input_filename}')
         os.rename(f'{ext_tc_dir}/{output_filename}',
-                  f'{TC_DIR}/{tc_name}/{OUTPUT_FILENAME}')
+                  f'{TC_DIR}/{tc_name}/{parsed_args.output_filename}')
 
 
-def main(args: List[str]):
+def parse_args():
+    '''
+    Parse CLI arguments
+
+    Parameters:
+        - args: argument list stored as string array
+
+    Returns:
+        ArgumentParser object containing parsed data
+    '''
+    arg_config = ArgumentConfig()
+
+    parser = argparse.ArgumentParser(
+        description="Mini Judge to test your solution against pre-generated test cases",
+    )
+
+    parser.add_argument(
+        '-f', '--filename', help="Name of solution file", action='store')
+    parser.add_argument('-tc', '--test_cases',
+                        help="Location of test case", action="store")
+    parser.add_argument(
+        '-is', '--input_strat', help="Input strategy (automatic | manual)", action='store'
+    )
+    parser.add_argument(
+        '-cs', '--check_strat', help="Check strategy (line | checker)", action='store'
+    )
+    parser.add_argument(
+        '-cn', '--checker_name', help="Name of checker file", action="store"
+    )
+    parser.add_argument(
+        '-in', '--input_filename', help="Input filename", action="store"
+    )
+    parser.add_argument(
+        '-out', '--output_filename', help="Expected output filename", action="store"
+    )
+
+    parser.parse_args(namespace=arg_config)
+
+    return arg_config
+
+
+def get_filename(parsed_args: ArgumentConfig):
+    '''
+    Determine submission filename.
+
+    If filename is not provided as CLI argument, it will be prompted.
+
+    Parameters:
+        - parsed_args: object containing parsed argument configurations
+    '''
+    if not parsed_args.filename:
+        print("Enter filename: ", end='')
+        input_file = input()
+        return input_file
+
+    return parsed_args.filename
+
+
+def main():
     """Driver code"""
+
+    # Parse arguments
+    parsed_args = parse_args()
+
     # Import external test cases
-    import_test_cases(args)
+    import_test_cases(parsed_args)
 
     # Prompt for submission's filename
-    print("Enter filename: ", end='')
-    input_file = input()
+    input_file = get_filename(parsed_args)
 
     filename_without_extension, extension = check_valid_file(input_file)
 
@@ -526,13 +606,13 @@ def main(args: List[str]):
         filename_without_extension, extension)
 
     # Evaluate source code
-    evaluate_submission(compiling_strategy)
+    evaluate_submission(parsed_args, compiling_strategy)
 
 
 if __name__ == '__main__':
     import sys
     try:
-        sys.exit(main(sys.argv))
+        sys.exit(main())
     except CustomException as err:
         print(f"\033[91m{err.msg}\033[00m")
         sys.exit(1)
